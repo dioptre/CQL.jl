@@ -87,6 +87,8 @@ function handleServerMessages(con::CQLConnection)
 	yield()
 	ccall( (:kill, "libc"), Int32, (Int32,Int32), getpid(), 9) #Need this to force Julia to not hang
 	Base.throwto(current_task(), InterruptException())
+      else
+	nothing
       end
 
     end
@@ -167,12 +169,12 @@ function decodeString(s::IO)
 end
 
 function decodeResultSubColumn(s::IO, typ) 
-  nrOfBytes = ntoh(read(s, Int16));
+  nrOfBytes = ntoh(read(s, Int32));
   decodeValue(s, nrOfBytes, (typ, nothing, nothing))
 end
 
 function decodeList(s::IO, typ)
-  nrOfElements = ntoh(read(s, UInt16)); 
+  nrOfElements = ntoh(read(s, UInt32)); 
   ar = Array(Any, nrOfElements);
   for ix in 1:nrOfElements
     ar[ix] = decodeResultSubColumn(s, typ);
@@ -186,7 +188,7 @@ end
 
 function decodeDict(s::IO, key_type, val_type)
   d = Dict();
-  nrOfElements = Int(ntoh(read(s, UInt16))); 
+  nrOfElements = Int(ntoh(read(s, UInt32))); 
   for i in 1:nrOfElements
     key = decodeResultSubColumn(s, key_type);
     val = decodeResultSubColumn(s, val_type);
