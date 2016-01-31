@@ -1,5 +1,8 @@
 using CQL
 using Base.Test
 
+include("examples.jl")
 # write your own tests here
-@test 1 == 1
+@test cqltest01()
+@test cqltest02()
+@test cqltest03()
