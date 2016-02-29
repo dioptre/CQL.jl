@@ -13,6 +13,18 @@ type CQLConnection
 end
 
 ####################################################################
+# Helpers
+####################################################################
+
+function ticks() 
+	return round(Int, time()*1000)
+end
+
+function die(;pid=getpid())
+	ccall( (:kill, "libc"), Int32, (Int32,Int32), pid, 9) #Need this to force Julia to not hang
+end
+
+####################################################################
 # Connect & Disconnect
 ####################################################################
 
@@ -85,7 +97,7 @@ function handleServerMessages(con::CQLConnection)
       if !isa(err, EOFError) then
 	close(con.socket)
 	yield()
-	ccall( (:kill, "libc"), Int32, (Int32,Int32), getpid(), 9) #Need this to force Julia to not hang
+	#die() #bit harsh forcing thread to die - moved outside, might work with spawnat if julia hangs again
 	Base.throwto(current_task(), InterruptException())
       else
 	nothing
@@ -392,6 +404,14 @@ function sync(con::CQLConnection)
     yield();
   end
 end
+
+
+####################################################################
+# Helpers
+####################################################################
+
+cleanString(str) = replace(str,"'","\\'")
+originalString(str) = replace(str,"\\'","'")
 
 ####################################################################
 
