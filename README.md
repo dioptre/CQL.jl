@@ -1,7 +1,8 @@
 CQL.jl
 ======
 
-cassandra CQL for julia
+Cassandra CQL for julia. Please note if you are looking for the old driver please try: https://github.com/wiffel/cql.js
+
 
 API
 ===
