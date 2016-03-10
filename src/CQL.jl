@@ -16,7 +16,7 @@ end
 # Helpers
 ####################################################################
 
-function ticks() 
+function ticks()
 	return round(Int, time()*1000)
 end
 
@@ -38,7 +38,7 @@ function connect(server::AbstractString = "localhost", port::Int = 9042)
   @assert version == 0x82 || version == 0x84 || version == 0x83
   @assert opcode  == 0x02
 
-  con 
+  con
 end
 
 function disconnect(con::CQLConnection)
@@ -51,7 +51,7 @@ function disconnect(con::CQLConnection)
   con.msg_id  = 1;
   con.replies = Dict();
   con.pending = 0;
-  con 
+  con
 end
 
 ####################################################################
@@ -66,16 +66,16 @@ function readServerMessage(socket::Base.TCPSocket)
   len     = ntoh(read(socket, UInt32));
   (version, id, opcode, len)
 end
-  
+
 function handleServerMessage(con::CQLConnection)
   version, id, opcode, len = readServerMessage(con.socket);
   if id > 0 then
-    put!(pop!(con.replies, id), 
+    put!(pop!(con.replies, id),
          (opcode, readbytes(con.socket, len)));
   elseif opcode == 0x00 then
     kind   = ntoh(read(con.socket, Int32));
     strlen = ntoh(read(con.socket, Int16));
-    print("ERROR (HANDLE) [$kind] : "* 
+    print("ERROR (HANDLE) [$kind] : "*
             bytestring(readbytes(con.socket, strlen)));
     throw(InterruptException())
   else
@@ -108,49 +108,16 @@ function handleServerMessages(con::CQLConnection)
   nothing
 end
 
-####################################################################
-# UUID
-####################################################################
-
-type UUID
-  val::UInt128
-end
-
-function UUID(str::AbstractString)
-  UUID(parseint(UInt128, replace(str, '-', ""), 16))
-end
-
-function Base.print(io::IO, uuid::UUID)                          
-  h = hex(uuid.val,32);
-  print(io, "uuid\"");
-  print(io, h[1:8]);
-  print(io, "-");
-  print(io, h[9:12]);
-  print(io, "-");
-  print(io, h[13:16]);
-  print(io, "-");
-  print(io, h[17:20]);
-  print(io, "-");
-  print(io, h[21:32]);
-  print(io, "\"");
-  nothing
-end
-
-show(io::IO, uuid::UUID) = print(io, uuid);
-
-macro uuid_str(p)
-  UUID(p)
-end
 
 ####################################################################
 # Timestamp
 ####################################################################
 
-type Timestamp 
+type Timestamp
   milliseconds::Int64
 end
 
-const timeOffset = time(Libc.strptime("%F %T %z %Z", 
+const timeOffset = time(Libc.strptime("%F %T %z %Z",
                                  "1970-01-01 00:00:00 +0000 UTC"));
 
 function Timestamp(str::AbstractString)
@@ -159,7 +126,7 @@ end
 
 function Base.print(io::IO, t::Timestamp)
   print(io, "ts\"");
-  print(io, strftime("%F %T", div(t.milliseconds, 1000) 
+  print(io, strftime("%F %T", div(t.milliseconds, 1000)
                               - timeOffset));
   print(io, "\"");
   nothing
@@ -180,13 +147,13 @@ function decodeString(s::IO)
   bytestring(readbytes(s, strlen));
 end
 
-function decodeResultSubColumn(s::IO, typ) 
+function decodeResultSubColumn(s::IO, typ)
   nrOfBytes = ntoh(read(s, Int32));
   decodeValue(s, nrOfBytes, (typ, nothing, nothing))
 end
 
 function decodeList(s::IO, typ)
-  nrOfElements = ntoh(read(s, UInt32)); 
+  nrOfElements = ntoh(read(s, UInt32));
   ar = Array(Any, nrOfElements);
   for ix in 1:nrOfElements
     ar[ix] = decodeResultSubColumn(s, typ);
@@ -200,7 +167,7 @@ end
 
 function decodeDict(s::IO, key_type, val_type)
   d = Dict();
-  nrOfElements = Int(ntoh(read(s, UInt32))); 
+  nrOfElements = Int(ntoh(read(s, UInt32)));
   for i in 1:nrOfElements
     key = decodeResultSubColumn(s, key_type);
     val = decodeResultSubColumn(s, val_type);
@@ -209,13 +176,13 @@ function decodeDict(s::IO, key_type, val_type)
   d
 end
 
-function decodeValue(s::IO, nrOfBytes::Integer, types) 
+function decodeValue(s::IO, nrOfBytes::Integer, types)
   type_kind, val_type, key_type = types;
   nrOfBytes < 0     ? nothing :
-  type_kind == 0x02 ? ntoh(read(s, UInt64)) : 
+  type_kind == 0x02 ? ntoh(read(s, UInt64)) :
   type_kind == 0x09 ? Int(ntoh(read(s, UInt32))) :
   type_kind == 0x0B ? (Timestamp(ntoh(read(s, UInt64)))) :
-  type_kind == 0x0C ? (UUID(ntoh(read(s, UInt128)))) :
+  type_kind == 0x0C ? (Base.Random.UUID(ntoh(read(s, UInt128)))) :
   type_kind == 0x0D ? bytestring(readbytes(s, nrOfBytes)) :
   type_kind == 0x20 ? decodeList(s, val_type) :
   type_kind == 0x21 ? decodeDict(s, key_type, val_type) :
@@ -224,10 +191,10 @@ function decodeValue(s::IO, nrOfBytes::Integer, types)
 end
 
 function decodeResultRowTypes(s::IOBuffer)
-  flags   = ntoh(read(s, UInt32)); 
-  colcnt  = ntoh(read(s, UInt32)); 
+  flags   = ntoh(read(s, UInt32));
+  colcnt  = ntoh(read(s, UInt32));
   gl_spec = (flags & 0x0001) != 0;
-  
+
   if gl_spec then
     gl_ksname = decodeString(s);
     gl_tablename = decodeString(s);
@@ -244,15 +211,15 @@ function decodeResultRowTypes(s::IOBuffer)
     ksname     = gl_spec ? gl_ksname : decodeString(s);
     tablename  = gl_spec ? gl_tablename : decodeString(s);
     name       = decodeString(s);
-    kind       = ntoh(read(s, UInt16)); 
+    kind       = ntoh(read(s, UInt16));
     key_type   = kind == 0x21 ?  ntoh(read(s, UInt16)) : nothing;
-    sub_type   = kind in UInt8[0x20, 0x21, 0x22] ? ntoh(read(s, UInt16)) : nothing; 
+    sub_type   = kind in UInt8[0x20, 0x21, 0x22] ? ntoh(read(s, UInt16)) : nothing;
     types[col] = (kind, sub_type, key_type);
   end
   types
 end
 
-function decodeResultColumn(s::IO, typ) 
+function decodeResultColumn(s::IO, typ)
   nrOfBytes = ntoh(read(s, Int32));
   decodeValue(s, nrOfBytes, typ)
 end
@@ -274,17 +241,17 @@ end
 function decodeResultMessage(buffer::Array{UInt8})
   s = IOBuffer(buffer)
   kind = ntoh(read(s, UInt32))
-  return kind == 0x01 ? ("void") : 
+  return kind == 0x01 ? ("void") :
   kind == 0x02 ? decodeResultRows(s) :
   kind == 0x03 ? ("set keyspace", decodeString(s)) :
   kind == 0x04 ? ("prepared") :
-  kind == 0x05 ? ("schema change", decodeString(s), decodeString(s), decodeString(s)) : 
+  kind == 0x05 ? ("schema change", decodeString(s), decodeString(s), decodeString(s)) :
     ("???");
 end
 
 function decodeErrorMessage(buffer::Array{UInt8})
   s = IOBuffer(buffer);
-  kind = ntoh(read(s, UInt32)); 
+  kind = ntoh(read(s, UInt32));
   errmsg = decodeString(s);
   println("ERROR (DECODE) [$kind]: ", errmsg);
   ("ERROR", kind, errmsg)
@@ -325,9 +292,9 @@ end
 
 function cql_encode(buf::IOBuffer, query::AbstractString)
   cql_encode_long_string(buf, query);
-  write(buf, 0x00); 
-  write(buf, 0x04); 
-  write(buf, 0x00); 
+  write(buf, 0x00);
+  write(buf, 0x04);
+  write(buf, 0x00);
   nothing
 end
 
@@ -343,7 +310,7 @@ function sendMessageBody(con::CQLConnection, msg)
   write(con.socket, takebuf_array(buf));
 end
 
-function sendMessage(con::CQLConnection, kind::UInt8, msg, 
+function sendMessage(con::CQLConnection, kind::UInt8, msg,
                      id::UInt16 = 0x0000)
   con.pending += 1;
   write(con.socket, 0x03);
@@ -371,7 +338,7 @@ end
 ####################################################################
 # Queries
 ####################################################################
- 
+
 function query(con::CQLConnection, msg::AbstractString)
   sync(con);
   getResult(asyncQuery(con, msg))
@@ -416,4 +383,3 @@ originalString(str) = replace(str,"\\'","'")
 ####################################################################
 
 end
-
